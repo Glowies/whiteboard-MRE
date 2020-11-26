@@ -28,9 +28,9 @@ export default class HelloWorld {
 			actor: {
 				transform: {
 					local: { 
-						position: { x: 0, y: 0, z: 0 },
+						position: { x: 0, y: 1, z: 0 },
 						rotation: MRE.Quaternion.RotationAxis(MRE.Vector3.Left(), Math.PI/2),
-						scale: {x: 0.3, y: 0.3, z: 0.3}
+						scale: {x: 3, y: 1, z: 2}
 					}
 				},
 			},
