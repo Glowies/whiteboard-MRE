@@ -24,11 +24,18 @@ export default class Whiteboard {
 		// set up somewhere to store loaded assets (meshes, textures, animations, gltfs, etc.)
 		this.assets = new MRE.AssetContainer(this.context);
 		this.parentActor = MRE.Actor.Create(this.context);
+
+		// Set up meshes
 		this.drawMesh = this.assets.createCylinderMesh('cylinders', 1, .25, "y", 2);
 		this.pointMesh = this.assets.createCylinderMesh('sphere', 0.01, .25, "z", 16);
+
+		// Set up materials
 		this.hoverMaterial = this.assets.createMaterial('hoverMaterial', {
 			color: MRE.Color3.Magenta(),
 			emissiveColor: MRE.Color3.Magenta(),
+		});
+		const penMat = this.assets.createMaterial('hoverMaterial', {
+			color: MRE.Color3.Teal(),
 		});
 		
 		this.drawSurface = MRE.Actor.CreatePrimitive(this.assets, {
@@ -49,13 +56,13 @@ export default class Whiteboard {
 		const buttonBehavior = this.drawSurface.setBehavior(MRE.ButtonBehavior);
 
 		buttonBehavior.onButton("pressed", (user: MRE.User, data: MRE.ButtonEventData) => {
-			this.spawnTargetObjects("draw", data.targetedPoints.map(pt => {
+			this.spawnTargetObjects(user, data.targetedPoints.map(pt => {
 				return new MRE.Vector3(pt.appSpacePoint.x, pt.appSpacePoint.y, pt.appSpacePoint.z);
 			}));
 		});
 		
 		buttonBehavior.onButton("holding", (user: MRE.User, data: MRE.ButtonEventData) => {
-			this.spawnTargetObjects("draw", data.targetedPoints.map(pt => {
+			this.spawnTargetObjects(user, data.targetedPoints.map(pt => {
 				return new MRE.Vector3(pt.appSpacePoint.x, pt.appSpacePoint.y, pt.appSpacePoint.z);
 			}));
 		});
@@ -68,7 +75,7 @@ export default class Whiteboard {
 		});
 	}
 
-	private spawnTargetObjects(targetingState: 'hover' | 'draw', drawPoints: MRE.Vector3[]) {
+	private spawnTargetObjects(user: MRE.User, drawPoints: MRE.Vector3[]) {
 		const materialId = this.hoverMaterial.id;
 		const thicness = .05;
 
@@ -84,7 +91,7 @@ export default class Whiteboard {
 						parentId: this.parentActor.id,
 						transform: { 
 							app: { 
-								position: midPt,
+								position: {x: midPt.x, y: midPt.y, z: -0.001},
 								rotation: MRE.Quaternion.RotationAxis(MRE.Vector3.Forward(), angle + Math.PI / 2).multiply(
 									MRE.Quaternion.RotationAxis(MRE.Vector3.Up(), Math.PI / 2)
 								),
@@ -106,10 +113,9 @@ export default class Whiteboard {
 					parentId: this.parentActor.id,
 					transform: { 
 						app: { 
-							position: drawPoint,
+							position: {x: drawPoint.x, y: drawPoint.y, z: -0.002},
 						},
 						local: {
-							position: new MRE.Vector3(0, 0, 0.1),
 							scale: new MRE.Vector3(thicness, thicness, thicness)
 						}
 					},
@@ -123,13 +129,10 @@ export default class Whiteboard {
 			this.prevPt = drawPoint;
 		});
 
-		if (targetingState === 'hover') {
-			// Set lifetime timer for the hover points.
-			setTimeout(() => drawActors.forEach(actor => actor.destroy()), 1500);
-		} else {
-			this.drawObjects = this.drawObjects.concat(drawActors);
-		}
+			// setTimeout(() => drawActors.forEach(actor => actor.destroy()), 1500);
+		this.drawObjects = this.drawObjects.concat(drawActors);
 	}
+	
 }
 
 function v3toString(vector: MRE.Vector3Like)
