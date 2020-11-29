@@ -5,10 +5,13 @@ import * as MRE from '@microsoft/mixed-reality-extension-sdk';
  */
 export default class Whiteboard {
 	private assets: MRE.AssetContainer;
+	private parentActor: MRE.Actor;
 	private drawSurface: MRE.Actor = null;
 	private drawMesh: MRE.Mesh;
+	private pointMesh: MRE.Mesh;
 	private hoverMaterial: MRE.Material;
 	private drawObjects: MRE.Actor[] = [];
+	private prevPt: MRE.Vector3 = null;
 
 	constructor(private context: MRE.Context) {
 		this.context.onStarted(() => this.started());
@@ -20,14 +23,17 @@ export default class Whiteboard {
 	private async started() {
 		// set up somewhere to store loaded assets (meshes, textures, animations, gltfs, etc.)
 		this.assets = new MRE.AssetContainer(this.context);
-
-		this.drawMesh = this.assets.createSphereMesh('drawPoint', .01);
+		this.parentActor = MRE.Actor.Create(this.context);
+		this.drawMesh = this.assets.createCylinderMesh('cylinders', 1, .25, "y", 2);
+		this.pointMesh = this.assets.createCylinderMesh('sphere', 0.01, .25, "z", 16);
 		this.hoverMaterial = this.assets.createMaterial('hoverMaterial', {
-			color: MRE.Color3.Gray()
+			color: MRE.Color3.Magenta(),
+			emissiveColor: MRE.Color3.Magenta(),
 		});
 		
 		this.drawSurface = MRE.Actor.CreatePrimitive(this.assets, {
 			actor: {
+				parentId: this.parentActor.id,
 				transform: {
 					local: { 
 						position: { x: 0, y: 1, z: 0 },
@@ -42,26 +48,79 @@ export default class Whiteboard {
 
 		const buttonBehavior = this.drawSurface.setBehavior(MRE.ButtonBehavior);
 
+		buttonBehavior.onButton("pressed", (user: MRE.User, data: MRE.ButtonEventData) => {
+			this.spawnTargetObjects("draw", data.targetedPoints.map(pt => {
+				return new MRE.Vector3(pt.appSpacePoint.x, pt.appSpacePoint.y, pt.appSpacePoint.z);
+			}));
+		});
+		
 		buttonBehavior.onButton("holding", (user: MRE.User, data: MRE.ButtonEventData) => {
-			this.spawnTargetObjects("draw", data.targetedPoints.map(pt => pt.localSpacePoint));
+			this.spawnTargetObjects("draw", data.targetedPoints.map(pt => {
+				return new MRE.Vector3(pt.appSpacePoint.x, pt.appSpacePoint.y, pt.appSpacePoint.z);
+			}));
+		});
+
+		buttonBehavior.onButton("released", () => {
+			this.prevPt = null;
+		});
+		buttonBehavior.onHover("exit", () => {
+			this.prevPt = null;
 		});
 	}
 
-	private spawnTargetObjects(targetingState: 'hover' | 'draw', drawPoints: MRE.Vector3Like[]) {
+	private spawnTargetObjects(targetingState: 'hover' | 'draw', drawPoints: MRE.Vector3[]) {
 		const materialId = this.hoverMaterial.id;
+		const thicness = .05;
 
-		const drawActors = drawPoints.map(drawPoint => {
-			return MRE.Actor.Create(this.context, {
+		const drawActors: MRE.Actor[] = [];
+		drawPoints.forEach(drawPoint => {
+			if(this.prevPt){
+				const midPt = MRE.Vector3.Lerp(drawPoint, this.prevPt, 0.5);
+				const dist = MRE.Vector3.Distance(drawPoint, this.prevPt);
+				const diff = drawPoint.subtract(this.prevPt);
+				const angle = Math.atan2(diff.y, diff.x);
+				drawActors.push(MRE.Actor.Create(this.context, {
+					actor: {
+						parentId: this.parentActor.id,
+						transform: { 
+							app: { 
+								position: midPt,
+								rotation: MRE.Quaternion.RotationAxis(MRE.Vector3.Forward(), angle + Math.PI / 2).multiply(
+									MRE.Quaternion.RotationAxis(MRE.Vector3.Up(), Math.PI / 2)
+								),
+							},
+							local: {
+								scale: new MRE.Vector3(thicness, dist, thicness)
+							}
+						},
+						appearance: {
+							materialId: materialId,
+							meshId: this.drawMesh.id
+						}
+					}
+				}));
+			}
+
+			drawActors.push(MRE.Actor.Create(this.context, {
 				actor: {
-					name: targetingState === 'hover' ? 'hoverBall' : 'drawBall',
-					parentId: this.drawSurface.id,
-					transform: { local: { position: drawPoint } },
+					parentId: this.parentActor.id,
+					transform: { 
+						app: { 
+							position: drawPoint,
+						},
+						local: {
+							position: new MRE.Vector3(0, 0, 0.1),
+							scale: new MRE.Vector3(thicness, thicness, thicness)
+						}
+					},
 					appearance: {
 						materialId: materialId,
-						meshId: this.drawMesh.id
+						meshId: this.pointMesh.id
 					}
 				}
-			});
+			}));
+
+			this.prevPt = drawPoint;
 		});
 
 		if (targetingState === 'hover') {
