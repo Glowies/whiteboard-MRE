@@ -1,4 +1,5 @@
 import * as MRE from '@microsoft/mixed-reality-extension-sdk';
+import { ButtonBehavior } from '@microsoft/mixed-reality-extension-sdk';
 
 /**
  * The main class of this app. All the logic goes here.
@@ -34,10 +35,12 @@ export default class Whiteboard {
 			color: MRE.Color3.Magenta(),
 			emissiveColor: MRE.Color3.Magenta(),
 		});
-		const penMat = this.assets.createMaterial('hoverMaterial', {
-			color: MRE.Color3.Teal(),
-		});
 		
+		this.spawnDrawingSurface();
+		this.spawnPen();
+	}
+
+	private spawnDrawingSurface(){
 		this.drawSurface = MRE.Actor.CreatePrimitive(this.assets, {
 			actor: {
 				parentId: this.parentActor.id,
@@ -75,9 +78,47 @@ export default class Whiteboard {
 		});
 	}
 
+	private spawnPen(){
+		const penMesh = this.assets.createCylinderMesh('pen', .1, 0.01, 'z', 6);
+		const penMat = this.assets.createMaterial('penMat', {
+			color: MRE.Color3.Teal(),
+		});
+		const pen = MRE.Actor.Create(this.context, {
+			actor: {
+				transform: {
+					app: { 
+						position: { x: 0, y: 1, z: -1 },
+					}
+				},
+				grabbable: true,
+				collider: { geometry: { shape: MRE.ColliderType.Auto} },
+				appearance: {
+					materialId: penMat.id,
+					meshId: penMesh.id
+				}
+			},
+		});
+
+		pen.collider.onTrigger("trigger-enter", (other: MRE.Actor) => {
+			
+		});
+
+		pen.onGrab("begin", (user: MRE.User) => {
+			pen.attach(user, "right-hand");
+			pen.transform.local.position = new MRE.Vector3(0, 0, 0);
+			pen.transform.local.position = new MRE.Vector3(0, 0, .15);
+			pen.transform.local.rotation = MRE.Quaternion.Zero();
+			pen.transform.local.rotation = MRE.Quaternion.RotationAxis(MRE.Vector3.Forward(), Math.PI/2);
+		});
+
+		pen.onGrab("end", (user: MRE.User) => {
+			pen.detach();
+		});
+	}
+
 	private spawnTargetObjects(user: MRE.User, drawPoints: MRE.Vector3[]) {
 		const materialId = this.hoverMaterial.id;
-		const thicness = .05;
+		const thicness = .02;
 
 		const drawActors: MRE.Actor[] = [];
 		drawPoints.forEach(drawPoint => {
